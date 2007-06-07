@@ -37,6 +37,8 @@ local timers = {}
 -- locals
 local GetTime = GetTime
 local string_format = string.format
+local math_fmod = math.fmod
+local math_floor = math.floor
 
 -- frame pools
 local active = {}
@@ -46,24 +48,47 @@ local inactive = {}
 oCD.active = active
 oCD.inactive = inactive
 
-local i
+local prev
 local sorty = function()
-	i = 0
+	prev = nil
 	for k, v in pairs(active) do
 		v:ClearAllPoints()
-		v:SetPoint("CENTER", UIParent, 0, 350-(i*16))
+		
+		if(prev) then v:SetPoint("TOP", prev, "BOTTOM")
+		else v:SetPoint("CENTER", UIParent, 0, 350) end
 
-		i = i + 1
+		prev = v
 	end
 end
 
-local now
+local formatTime = function(time)
+	local m, s, text
+	if(time <= 0) then
+		return ""
+	elseif(time < 10) then
+		text = string_format("%.1f", time)
+	else
+		m = math_floor(time / 60)
+		s = math_fmod(time, 60)
+		text = (m == 0 and string_format("%d", s)) or string_format("%d:%02d", m, s)
+	end
+
+	return text
+end
+
+-- remove later
+oCD.formatTime = formatTime
+
+local now, time
 local OnUpdate = function(self, elapsed)
 	self.time = self.time + elapsed
 	if(self.time > .05) then
 		now = GetTime()
 		if(self.max > now) then
-			self.value:SetText(string_format("%.1f", self.max-now))
+			time = formatTime(self.max-now)
+			self.value:SetText(time)
+
+			if(time == "3.0") then self.value:SetTextColor(.8, .1, .1) end
 		end
 	
 		self.time = 0
@@ -126,6 +151,7 @@ function class.start(name, start, duration)
 	sb:Show()
 	sb.icon:SetTexture(data.texture)
 	sb:SetCooldown(start, duration)
+	sb.value:SetTextColor(1, 1, 1)
 
 	sorty()
 end
