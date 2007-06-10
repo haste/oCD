@@ -122,6 +122,7 @@ local new = function(name)
 	sb:SetHeight(20)
 	sb:SetWidth(20)
 	sb:SetScript("OnUpdate", OnUpdate)
+	sb:SetScript("OnHide", sorty)
 
 	local icon = sb:CreateTexture(nil, "BACKGROUND")
 	icon:SetAllPoints(sb)
@@ -173,8 +174,6 @@ function class.stop(name)
 
 	sb = active[name]
 
-	sb.value:SetText(0)
-	--sb:Hide()
 	inactive[name] = sb
 	active[name] = nil
 
