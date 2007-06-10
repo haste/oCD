@@ -64,7 +64,7 @@ end
 local formatTime = function(time)
 	local m, s, text
 	if(time <= 0) then
-		return ""
+		return "0.0"
 	elseif(time < 10) then
 		text = string_format("%.1f", time)
 	else
@@ -76,26 +76,39 @@ local formatTime = function(time)
 	return text
 end
 
+local anchors = {
+	["top"] = "BOTTOM#TOP#0#0",
+	["bottom"] = "TOP#BOTTOM#0#0",
+
+	["left"] = "RIGHT#LEFT#0#-1",
+	["right"] = "LEFT#RIGHT#0#-1",
+
+	["center"] = "CENTER#CENTER#0#-1",
+}
+
 -- remove later
 oCD.formatTime = formatTime
+
+gTime = 0
 
 local now, time
 local OnUpdate = function(self, elapsed)
 	self.time = self.time + elapsed
-	if(self.time > .05) then
-		now = GetTime()
-		if(self.max > now) then
-			time = formatTime(self.max-now)
+	if(self.time > .03) then
+		now = self.max-GetTime()
+		if(now > -.5) then
+			time = formatTime(now)
 			self.value:SetText(time)
 
-			if(time == "3.0") then self.value:SetTextColor(.8, .1, .1) end
+			if(time == "3.0") then self.value:SetTextColor(.8, .1, .1)
+			elseif(time == "0.0") then self.value:SetTextColor(102/255, 153/255, 51/255) end
+		else
+			self.stop(self.name)
+			gTime = gTime + elapsed
 		end
 	
 		self.time = 0
 	end
-end
-local OnHide = function(self)
-	self.stop(self.name)
 end
 
 local sb
@@ -106,10 +119,9 @@ local new = function(name)
 	sb.name = name
 	sb.time = 0
 	sb:SetParent(UIParent)
-	sb:SetHeight(18)
-	sb:SetWidth(18)
+	sb:SetHeight(20)
+	sb:SetWidth(20)
 	sb:SetScript("OnUpdate", OnUpdate)
-	sb:SetScript("OnHide", OnHide)
 
 	local icon = sb:CreateTexture(nil, "BACKGROUND")
 	icon:SetAllPoints(sb)
@@ -160,12 +172,28 @@ function class.stop(name)
 	if(not active[name]) then return end
 
 	sb = active[name]
-	
-	sb:Hide()
+
+	sb.value:SetText(0)
+	--sb:Hide()
 	inactive[name] = sb
 	active[name] = nil
 
 	sorty()
+end
+
+function class.SetTimerPosition(pos, x2, y2)
+	local p1, p2, x, y = strsplit("#", anchors[pos])
+
+	if(x2 and type(x2) == "number") then x = x + x2 end
+	if(y2 and type(y2) == "number") then y = y + y2 end
+
+	for _, v in pairs(inactive) do
+		v.value:SetPoint(p1, v, p2, x, y)
+	end
+
+	for _, v in pairs(active) do
+		v.value:SetPoint(p1, v, p2, x, y)
+	end
 end
 
 oCD.bars = class
