@@ -82,7 +82,7 @@ addon.PLAYER_ENTERING_WORLD = updateCooldown
 
 --[[ We delay these events as they can trigger extra scans.
 --]]
-local show = function(unit) if(not unit or unit == "player") then addon:Show() end end
+local show = function(self, event, unit) if(not unit or unit == "player") then addon:Show() end end
 addon.UNIT_SPELLCAST_SUCCEEDED = show
 addon.UNIT_SPELLCAST_STOP = show
 addon.UPDATE_STEALTH = show
@@ -94,8 +94,8 @@ function addon:PLAYER_LOGIN()
 	register = self.bars.register
 	self:parseSpellBook(BOOKTYPE_SPELL)
 
-	self.bars:setMinMax(defaults.min, defaults.max)
-	self.bars:setTextPosition(defaults.textPos)
+	self.bars.setMinMax(defaults.min, defaults.max)
+	self.bars.setTextPosition(defaults.textPos)
 end
 
 function addon:parseSpellBook(type)

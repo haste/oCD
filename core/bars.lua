@@ -174,13 +174,13 @@ local anchors = {
 	top		= "BOTTOM#TOP#0#0",
 	bottom	= "TOP#BOTTOM#0#0",
 
-	left	= "RIGHT#LEFT#0#-1",
-	right	= "LEFT#RIGHT#0#-1",
+	left	= "RIGHT#LEFT#-3#-1",
+	right	= "LEFT#RIGHT#3#-1",
 
 	center	= "CENTER#CENTER#0#-1",
 }
 
-function class:setTextPosition(pos, x2, y2)
+function class.setTextPosition(pos, x2, y2)
 	local p1, p2, x, y = strsplit("#", anchors[pos])
 
 	if(x2 and type(x2) == "number") then x = x + x2 end
