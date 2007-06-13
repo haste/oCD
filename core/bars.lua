@@ -40,6 +40,9 @@ local string_format = string.format
 local math_fmod = math.fmod
 local math_floor = math.floor
 
+-- Settings:
+local min, max, growth
+
 local formatTime = function(time)
 	local m, s, text
 	if(time < 0) then
@@ -59,6 +62,7 @@ local sort = function(a, b)
 	return a.max > b.max
 end
 
+-- TODO: Create a frame we can move around.
 local updatePosition = function()
 	table.sort(list, sort)
 
@@ -133,9 +137,6 @@ local new = function(name, texture, spellid, type)
 
 	local text = sb:CreateFontString(nil, "OVERLAY")
 	text:SetFont(STANDARD_TEXT_FONT, 10, "OUTLINE")
-	text:SetPoint("LEFT", sb, "RIGHT", 2, 0)
-
-	sb:SetPoint("CENTER", UIParent)
 
 	sb.value = text
 	sb.icon = icon
@@ -143,6 +144,7 @@ local new = function(name, texture, spellid, type)
 	return sb
 end
 
+-- TODO: Add grouping here:
 function class.register(name, texture, spellid, type)
 	if(timers[name]) then return end
 	timers[name] = new(name, texture, spellid, type)
@@ -153,7 +155,7 @@ end
 function class:update(name, time, duration)
 	if(duration == 0) then
 		self:Hide()
-	elseif(duration > 1.5 and not self:IsShown()) then
+	elseif(duration > min and duration < max and not self:IsShown()) then
 		self.max = time + duration
 		self:SetCooldown(time, duration)
 
@@ -161,6 +163,38 @@ function class:update(name, time, duration)
 		updatePosition()
 
 		if(duration > 3) then self.value:SetTextColor(1, 1, 1) end
+	end
+end
+
+function class.setMinMax(mincd, maxcd)
+	min, max = mincd, maxcd
+end
+
+local anchors = {
+	top		= "BOTTOM#TOP#0#0",
+	bottom	= "TOP#BOTTOM#0#0",
+
+	left	= "RIGHT#LEFT#0#-1",
+	right	= "LEFT#RIGHT#0#-1",
+
+	center	= "CENTER#CENTER#0#-1",
+}
+
+function class:setTextPosition(pos, x2, y2)
+	local p1, p2, x, y = strsplit("#", anchors[pos])
+
+	if(x2 and type(x2) == "number") then x = x + x2 end
+	if(y2 and type(y2) == "number") then y = y + y2 end
+
+	if(pos == "hidden") then
+		for _, obj in pairs(timers) do
+			obj.value:Hide()
+		end
+	else
+		for _, obj in pairs(timers) do
+			obj.value:Show()
+			obj.value:SetPoint(p1, obj, p2, x, y)
+		end
 	end
 
 end
