@@ -67,11 +67,7 @@ local updateCooldown = function(self)
 	for name, obj in pairs(timers) do
 		time, duration, enable = GetSpellCooldown(obj.spellid, obj.type)
 
-		if(time and duration and enable) then
-			obj(name, time, duration)
-		else
-			print"lulz?"
-		end
+		obj(name, time, duration)
 	end
 end
 
