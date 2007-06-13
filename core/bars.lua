@@ -29,42 +29,21 @@
   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ---------------------------------------------------------------------------]]
 
-local class = CreateFrame"Cooldown"
-local mt = {__index = class}
-
 local timers = {}
+local list = {}
 
--- locals
+local class = CreateFrame"Cooldown"
+local mt = {__index = class, __call = function(self, ...) self:update(...) end}
+
 local GetTime = GetTime
 local string_format = string.format
 local math_fmod = math.fmod
 local math_floor = math.floor
 
--- frame pools
-local active = {}
-local inactive = {}
-
--- remove these later on
-oCD.active = active
-oCD.inactive = inactive
-
-local prev
-local sorty = function()
-	prev = nil
-	for k, v in pairs(active) do
-		v:ClearAllPoints()
-		
-		if(prev) then v:SetPoint("TOP", prev, "BOTTOM")
-		else v:SetPoint("CENTER", UIParent, 0, 350) end
-
-		prev = v
-	end
-end
-
 local formatTime = function(time)
 	local m, s, text
-	if(time <= 0) then
-		return "0.0"
+	if(time < 0) then
+		return
 	elseif(time < 10) then
 		text = string_format("%.1f", time)
 	else
@@ -76,55 +55,79 @@ local formatTime = function(time)
 	return text
 end
 
-local anchors = {
-	["top"] = "BOTTOM#TOP#0#0",
-	["bottom"] = "TOP#BOTTOM#0#0",
+local sort = function(a, b)
+	return a.max > b.max
+end
 
-	["left"] = "RIGHT#LEFT#0#-1",
-	["right"] = "LEFT#RIGHT#0#-1",
+local updatePosition = function()
+	table.sort(list, sort)
 
-	["center"] = "CENTER#CENTER#0#-1",
-}
+	local prev
+	for _, obj in ipairs(list) do
+		obj:ClearAllPoints()
 
--- remove later
-oCD.formatTime = formatTime
+		if(prev) then
+			obj:SetPoint("TOP", prev, "BOTTOM")
+		else
+			obj:SetPoint("CENTER", UIParent, 0, 350)
+		end
 
-gTime = 0
+		prev = obj
+	end
+end
+
+-- TODO: Remove the global reference to these table.
+oCD.list = list
+oCD.timers = timers
+oCD.pos = updatePosition
 
 local now, time
 local OnUpdate = function(self, elapsed)
 	self.time = self.time + elapsed
 	if(self.time > .03) then
 		now = self.max-GetTime()
-		if(now > -.5) then
+		if(now >= 0) then
 			time = formatTime(now)
 			self.value:SetText(time)
 
-			if(time == "3.0") then self.value:SetTextColor(.8, .1, .1)
-			elseif(time == "0.0") then self.value:SetTextColor(102/255, 153/255, 51/255) end
+			if(time == "3.0") then self.value:SetTextColor(.8, .1, .1) end
 		else
-			self.stop(self.name)
-			gTime = gTime + elapsed
+			self.time = 0
+			self:Hide()
 		end
 	
 		self.time = 0
 	end
 end
 
-local sb
-local new = function(name)
-	sb = CreateFrame"Cooldown"
-	setmetatable(sb, mt)
+local OnHide = function(self)
+	for k, v in ipairs(list) do
+		if(v.name == self.name and v.time == 0) then
+			table.remove(list, k)
+		end
+	end
+
+	updatePosition()
+end
+
+local new = function(name, texture, spellid, type)
+	local sb = setmetatable(CreateFrame"Cooldown", mt)
+	sb:Hide()
 
 	sb.name = name
 	sb.time = 0
+
+	sb.spellid = spellid
+	sb.type = type
+
 	sb:SetParent(UIParent)
 	sb:SetHeight(20)
 	sb:SetWidth(20)
 	sb:SetScript("OnUpdate", OnUpdate)
-	sb:SetScript("OnHide", sorty)
+	sb:SetScript("OnHide", OnHide)
 
 	local icon = sb:CreateTexture(nil, "BACKGROUND")
+	icon:SetTexture(texture)
 	icon:SetAllPoints(sb)
 	icon:SetAlpha(.6)
 
@@ -132,67 +135,34 @@ local new = function(name)
 	text:SetFont(STANDARD_TEXT_FONT, 10, "OUTLINE")
 	text:SetPoint("LEFT", sb, "RIGHT", 2, 0)
 
+	sb:SetPoint("CENTER", UIParent)
+
 	sb.value = text
 	sb.icon = icon
+
 	return sb
 end
 
-local old = function(name)
-	sb = inactive[name]
-	if(sb) then inactive[name] = nil end
-	return sb
-end
-
-function class.register(name, duration, texture)
+function class.register(name, texture, spellid, type)
 	if(timers[name]) then return end
+	timers[name] = new(name, texture, spellid, type)
 
-	timers[name] = {
-		texture = texture,
-		duration = duration,
-	}
+	return timers[name]
 end
 
-local data, sb
-function class.start(name, start, duration)
-	data = timers[name]
-	if(not data) then return end
+function class:update(name, time, duration)
+	if(duration == 0) then
+		self:Hide()
+	elseif(duration > 1.5 and not self:IsShown()) then
+		self.max = time + duration
+		self:SetCooldown(time, duration)
 
-	sb = old(name) or active[name] or new(name)
-	active[name] = sb
+		table.insert(list, self)
+		updatePosition()
 
-	sb.max = start+duration
-	sb:Show()
-	sb.icon:SetTexture(data.texture)
-	sb:SetCooldown(start, duration)
-	sb.value:SetTextColor(1, 1, 1)
-
-	sorty()
-end
-
-function class.stop(name)
-	if(not active[name]) then return end
-
-	sb = active[name]
-
-	inactive[name] = sb
-	active[name] = nil
-
-	sorty()
-end
-
-function class.SetTimerPosition(pos, x2, y2)
-	local p1, p2, x, y = strsplit("#", anchors[pos])
-
-	if(x2 and type(x2) == "number") then x = x + x2 end
-	if(y2 and type(y2) == "number") then y = y + y2 end
-
-	for _, v in pairs(inactive) do
-		v.value:SetPoint(p1, v, p2, x, y)
+		if(duration > 3) then self.value:SetTextColor(1, 1, 1) end
 	end
 
-	for _, v in pairs(active) do
-		v.value:SetPoint(p1, v, p2, x, y)
-	end
 end
 
 oCD.bars = class

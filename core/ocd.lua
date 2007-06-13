@@ -29,26 +29,18 @@
   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ---------------------------------------------------------------------------]]
 
-local onEvent = function(self, event, ...)
-	self[event](self, event, ...)
-end
-
--- addon related...
 local addon = CreateFrame"Frame"
 addon:Hide()
+
 local print = function(...) ChatFrame1:AddMessage(...) end
 local printf = function(...) ChatFrame1:AddMessage(string.format(...)) end
-local start, stop, register
-
--- locals
-local GetSpellCooldown = GetSpellCooldown
-local pairs = pairs
 
 -- we run 1.5 across the board, it's possible to have 1.5 seconds global cooldown on a rogue.
 local gc = 1.5
 
--- tooltip madness
-tip = CreateFrame"GameTooltip"
+--[[ tooltip madness
+--]]
+local tip = CreateFrame"GameTooltip"
 tip:SetOwner(WorldFrame, "ANCHOR_NONE")
 tip.r, tip.l = {}, {}
 
@@ -62,41 +54,41 @@ local SetSpell = function(id, type)
 	tip:SetSpell(id, type)
 end
 
--- We have them here for now
-local SPELL_RECAST_TIME_MIN = SPELL_RECAST_TIME_MIN:gsub("%%%.3g", "%(%%d+%%.?%%d*%)")
-local SPELL_RECAST_TIME_SEC = SPELL_RECAST_TIME_SEC:gsub("%%%.3g", "%(%%d+%%.?%%d*%)")
+-- TODO: This should be the defaults of ../locale/enUS.lua.
+local min = SPELL_RECAST_TIME_MIN:gsub("%%%.3g", "%(%%d+%%.?%%d*%)")
+local sec = SPELL_RECAST_TIME_SEC:gsub("%%%.3g", "%(%%d+%%.?%%d*%)")
 
--- locals we need:
-local spells = {}
-
--- remove these later
-addon.spells = spells
+-- TODO: Remove the global reference to this table.
+local timers = {}
+addon.timers = timers
 
 local time, duration, enable
 local updateCooldown = function(self)
-	for name, vars in pairs(spells) do
-		time, duration, enable = GetSpellCooldown(vars.id, vars.type)
+	for name, obj in pairs(timers) do
+		time, duration, enable = GetSpellCooldown(obj.spellid, obj.type)
 
-		if(time > 0 and duration > gc and enable > 0) then
-			start(name, time, duration)
-		elseif(time == 0 and duration == 0 and enable == 1) then
-			stop(name)
+		if(time and duration and enable) then
+			obj(name, time, duration)
+		else
+			print"lulz?"
 		end
 	end
 end
-local show = function() addon:Show() end
 
 addon.PLAYER_ENTERING_WORLD = updateCooldown
+
+--[[ We delay these events as they can trigger extra scans.
+--]]
+local show = function() addon:Show() end
 addon.UNIT_SPELLCAST_SUCCEEDED = show
 addon.UNIT_SPELLCAST_STOP = show
 addon.UPDATE_STEALTH = show
 
--- enable
+--[[ Initiate the addon
+--]]
+local register
 function addon:PLAYER_LOGIN()
-	start = self.bars.start
-	stop = self.bars.stop
 	register = self.bars.register
-
 	self:parseSpellBook(BOOKTYPE_SPELL)
 end
 
@@ -111,12 +103,9 @@ function addon:parseSpellBook(type)
 			SetSpell(i, type)
 
 			cd = tip.r[3]:GetText() or tip.r[2]:GetText()
-			if(cd and cd:match(SPELL_RECAST_TIME_MIN)) then
-				spells[n] = {id = i, type = type}
-				register(n, cd:match(SPELL_RECAST_TIME_MIN)*60, GetSpellTexture(i, type))
-			elseif(cd and cd:match(SPELL_RECAST_TIME_SEC)) then
-				spells[n] = {id = i, type = type}
-				register(n, cd:match(SPELL_RECAST_TIME_SEC), GetSpellTexture(i, type))
+			if(cd and (cd:match(min) or cd:match(sec))) then
+				-- register(name, cd, texture, spellid, type)
+				timers[n] = register(n, GetSpellTexture(i, type), i, type)
 			end
 		end
 
@@ -124,8 +113,8 @@ function addon:parseSpellBook(type)
 	end
 end
 
-addon:SetScript("OnEvent", onEvent)
-
+--[[ We delay all updates with .5 sec
+--]]
 local update = 0
 addon:SetScript("OnUpdate", function(self, elapsed)
 	update = update + elapsed
@@ -136,10 +125,18 @@ addon:SetScript("OnUpdate", function(self, elapsed)
 		self:Hide()
 	end
 end)
+addon:SetScript("OnEvent", function(self, event, ...)
+	self[event](self, event, ...)
+end)
+
 addon:RegisterEvent"PLAYER_LOGIN"
 addon:RegisterEvent"PLAYER_ENTERING_WORLD"
+
+--[[ I decided to avoid SPELL_UPDATE_COOLDOWN, as it fires a lot..
+--   we shave off some CPU usage by doing this instead.
+--]]
 addon:RegisterEvent"UNIT_SPELLCAST_SUCCEEDED"
 addon:RegisterEvent"UNIT_SPELLCAST_STOP"
 addon:RegisterEvent"UPDATE_STEALTH"
 
-_G['oCD'] = addon
+_G.oCD = addon
