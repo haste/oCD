@@ -154,6 +154,7 @@ end
 
 function class:update(name, time, duration)
 	if(duration == 0) then
+		self.time = 0
 		self:Hide()
 	elseif(duration > min and duration < max and not self:IsShown()) then
 		self.max = time + duration
