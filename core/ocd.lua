@@ -74,7 +74,7 @@ local updateCooldown = function(self)
 	for name, obj in pairs(timers) do
 		time, duration, enable = GetSpellCooldown(obj.spellid, obj.type)
 
-		obj(name, time, duration)
+		obj(duration, time)
 	end
 end
 

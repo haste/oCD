@@ -96,22 +96,11 @@ local OnUpdate = function(self, elapsed)
 
 			if(time == "3.0") then self.value:SetTextColor(.8, .1, .1) end
 		else
-			self.time = 0
-			self:Hide()
+			self:update(0)
 		end
 	
 		self.time = 0
 	end
-end
-
-local OnHide = function(self)
-	for k, v in ipairs(list) do
-		if(v.name == self.name and v.time == 0) then
-			table.remove(list, k)
-		end
-	end
-
-	updatePosition()
 end
 
 local new = function(name, texture, spellid, type)
@@ -128,7 +117,6 @@ local new = function(name, texture, spellid, type)
 	sb:SetHeight(20)
 	sb:SetWidth(20)
 	sb:SetScript("OnUpdate", OnUpdate)
-	sb:SetScript("OnHide", OnHide)
 
 	local icon = sb:CreateTexture(nil, "BACKGROUND")
 	icon:SetTexture(texture)
@@ -152,10 +140,17 @@ function class.register(name, texture, spellid, type)
 	return timers[name]
 end
 
-function class:update(name, time, duration)
+function class:update(duration, time)
 	if(duration == 0 and self:IsShown()) then
-		self.time = 0
 		self:Hide()
+
+		for k, v in ipairs(list) do
+			if(v == self) then
+				table.remove(list, k)
+			end
+		end
+
+		updatePosition()
 	elseif(duration > min and duration < max and not self:IsShown()) then
 		self.max = time + duration
 		self:SetCooldown(time, duration)
