@@ -153,7 +153,7 @@ function class.register(name, texture, spellid, type)
 end
 
 function class:update(name, time, duration)
-	if(duration == 0) then
+	if(duration == 0 and self:IsShown()) then
 		self.time = 0
 		self:Hide()
 	elseif(duration > min and duration < max and not self:IsShown()) then
