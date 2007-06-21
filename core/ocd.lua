@@ -30,7 +30,7 @@
 ---------------------------------------------------------------------------]]
 
 local defaults = {
-	min = 1.5,
+	min = 2.0,
 	max = 15*60,
 	textPos = "right",
 	growth = "down",
@@ -41,9 +41,6 @@ addon:Hide()
 
 local print = function(...) ChatFrame1:AddMessage(...) end
 local printf = function(...) ChatFrame1:AddMessage(string.format(...)) end
-
--- we run 1.5 across the board, it's possible to have 1.5 seconds global cooldown on a rogue.
-local gc = 1.5
 
 --[[ tooltip madness
 --]]
