@@ -1,4 +1,7 @@
 ## Interface: 20300
+## Author: Haste
+## X-eMail: troeks@gmail.com
+## Notes: Display cooldowns as icons, currently hardcoded under the UIErrorsFrame.
 
 core\ocd.lua
 core\bars.lua
