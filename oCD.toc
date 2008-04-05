@@ -3,5 +3,5 @@
 ## X-eMail: troeks@gmail.com
 ## Notes: Display cooldowns as icons, currently hardcoded under the UIErrorsFrame.
 
-core\ocd.lua
-core\bars.lua
+ocd.lua
+bars.lua
