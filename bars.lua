@@ -1,198 +1,259 @@
---[[-------------------------------------------------------------------------
-  Copyright (c) 2006-2007, Trond A Ekseth
-  All rights reserved.
+--[[
+-- The code is largly based on GTB: http://shadowed-wow.googlecode.com/svn/trunk/GTB/
+]]
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
+local framePool = {}
+groups = {}
 
-      * Redistributions of source code must retain the above copyright
-        notice, this list of conditions and the following disclaimer.
-      * Redistributions in binary form must reproduce the above
-        copyright notice, this list of conditions and the following
-        disclaimer in the documentation and/or other materials provided
-        with the distribution.
-      * Neither the name of oCD nor the names of its contributors may
-        be used to endorse or promote products derived from this
-        software without specific prior written permission.
-
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
----------------------------------------------------------------------------]]
-
-local timers = {}
-local list = {}
-
-local class = CreateFrame"Cooldown"
-local mt = {__index = class, __call = function(self, ...) self:update(...) end}
-
-local GetTime = GetTime
-local string_format = string.format
-local math_fmod = math.fmod
-local math_floor = math.floor
-
--- Settings:
-local min, max, growth
-
-local formatTime = function(time)
-	local m, s, text
-	if(time < 0) then
-		return
-	elseif(time < 10) then
-		text = string_format("%.1f", time)
-	else
-		m = math_floor(time / 60)
-		s = math_fmod(time, 60)
-		text = (m == 0 and string_format("%d", s)) or string_format("%d:%02d", m, s)
-	end
-
-	return text
-end
-
-local sort = function(a, b)
-	return a.max > b.max
-end
-
--- TODO: Create a frame we can move around.
-local updatePosition = function()
-	table.sort(list, sort)
-
-	local prev
-	for _, obj in ipairs(list) do
-		obj:ClearAllPoints()
-
-		if(prev) then
-			obj:SetPoint("TOP", prev, "BOTTOM")
-		else
-			obj:SetPoint("CENTER", UIParent, 0, 350)
-		end
-
-		prev = obj
-	end
-end
-
--- TODO: Remove the global reference to these table.
-oCD.list = list
-oCD.timers = timers
-oCD.pos = updatePosition
-
-local now, time
-local OnUpdate = function(self, elapsed)
-	self.time = self.time + elapsed
-	if(self.time > .03) then
-		now = self.max-GetTime()
-		if(now >= 0) then
-			time = formatTime(now)
-			self.value:SetText(time)
-
-			if(time == "3.0") then self.value:SetTextColor(.8, .1, .1) end
-		else
-			self:update(0)
-		end
-	
-		self.time = 0
-	end
-end
-
-local new = function(name, texture, spellid, type)
-	local sb = setmetatable(CreateFrame"Cooldown", mt)
-	sb:Hide()
-
-	sb.name = name
-	sb.time = 0
-
-	sb.spellid = spellid
-	sb.type = type
-
-	sb:SetParent(UIParent)
-	sb:SetHeight(20)
-	sb:SetWidth(20)
-	sb:SetScript("OnUpdate", OnUpdate)
-
-	local icon = sb:CreateTexture(nil, "BACKGROUND")
-	icon:SetTexture(texture)
-	icon:SetAllPoints(sb)
-	icon:SetAlpha(.6)
-
-	local text = sb:CreateFontString(nil, "OVERLAY")
-	text:SetFont(STANDARD_TEXT_FONT, 10, "OUTLINE")
-
-	sb.value = text
-	sb.icon = icon
-
-	return sb
-end
-
--- TODO: Add grouping here:
-function class.register(name, texture, spellid, type)
-	if(timers[name]) then return end
-	timers[name] = new(name, texture, spellid, type)
-
-	return timers[name]
-end
-
-function class:update(duration, time)
-	if(duration == 0 and self:IsShown()) then
-		self:Hide()
-
-		for k, v in ipairs(list) do
-			if(v == self) then
-				table.remove(list, k)
-			end
-		end
-
-		updatePosition()
-	elseif(duration > min and duration < max and not self:IsShown()) then
-		self.max = time + duration
-		self:SetCooldown(time, duration)
-
-		table.insert(list, self)
-		updatePosition()
-
-		if(duration > 3) then self.value:SetTextColor(1, 1, 1) end
-	end
-end
-
-function class.setMinMax(mincd, maxcd)
-	min, max = mincd, maxcd
-end
-
-local anchors = {
-	top		= "BOTTOM#TOP#0#0",
-	bottom	= "TOP#BOTTOM#0#0",
-
-	left	= "RIGHT#LEFT#-3#-1",
-	right	= "LEFT#RIGHT#3#-1",
-
-	center	= "CENTER#CENTER#0#-1",
+local L = {
+	["BAD_ARGUMENT"] = "bad argument #%d for '%s' (%s expected, got %s)",
+	["MUST_CALL"] = "You must call '%s' from a registered GTB object.",
+	["GROUP_EXISTS"] = "The group '%s' already exists.",
 }
 
-function class.setTextPosition(pos, x2, y2)
-	local p1, p2, x, y = strsplit("#", anchors[pos])
-
-	if(x2 and type(x2) == "number") then x = x + x2 end
-	if(y2 and type(y2) == "number") then y = y + y2 end
-
-	if(pos == "hidden") then
-		for _, obj in pairs(timers) do
-			obj.value:Hide()
-		end
-	else
-		for _, obj in pairs(timers) do
-			obj.value:Show()
-			obj.value:SetPoint(p1, obj, p2, x, y)
-		end
+local function getFrame()
+	-- Check for an unused bar
+	if( #(framePool) > 0 ) then
+		return table.remove(framePool, 1)
 	end
 
+	local frame = CreateFrame"Frame"
+	frame:Hide()
+	frame:SetParent(UIParent)
+	frame:SetBackdrop{
+		bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", tile = true, tileSize = 16,
+		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 8,
+		insets = {left = 2, right = 2, top = 2, bottom = 2},
+	}
+	frame:SetBackdropColor(0, 0, 0)
+	frame:SetBackdropBorderColor(0, 0, 0)
+	frame:SetScript("OnUpdate", OnUpdate)
+
+	local cd = CreateFrame"Cooldown"
+	cd:SetParent(frame)
+
+	local font, size = GameFontNormal:GetFont()
+	local text = cd:CreateFontString()
+	text:SetDrawLayer"OVERLAY"
+	text:SetFont(font, size, "OUTLINE")
+	text:SetTextColor(1, 1, 1)
+	text:SetPoint("BOTTOM", frame, 1, -2)
+
+	local icon = cd:CreateTexture()
+	icon:SetDrawLayer"BACKGROUND"
+	icon:SetTexCoord(.07, .93, .07, .93)
+	icon:ClearAllPoints()
+	icon:SetAllPoints(cd)
+
+	local sb = CreateFrame"StatusBar"
+	sb:SetParent(frame)
+	sb:SetPoint("TOP", frame, 0, -3)
+	sb:SetPoint("BOTTOM", 0, 3)
+	sb:SetPoint("LEFT", 3, 0)
+	sb:SetPoint("RIGHT", cd, "LEFT")
+	sb:SetOrientation"VERTICAL"
+	sb:SetMinMaxValues(0, 1)
+	sb:SetStatusBarTexture[[Interface\AddOns\oUF_Lily\textures\statusbar]]
+
+	frame.update = update
+	frame.cd = cd
+	frame.text = text
+	frame.sb = sb
+	frame.icon = icon
+
+	return frame
 end
 
-oCD.bars = class
+local function releaseFrame(frame)
+	-- Stop updates
+	frame:SetScript("OnUpdate", nil)
+	frame:Hide()
+
+	-- And now readd to the frame pool
+	table.insert(framePool, frame)
+end
+
+-- OnUpdate for a bar
+local function OnUpdate(self)
+	local time = GetTime()
+	-- Check if times ran out and that we need to start fading it out
+	self.secondsLeft = self.secondsLeft - (time - self.lastUpdate)
+	self.lastUpdate = time
+	if( self.secondsLeft <= 0 ) then
+		self.sb:SetValue(0)
+		groups[self.owner]:UnregisterBar(self.id)
+		return
+	end
+
+	-- Timer text, need to see if this can be optimized a bit later
+	local hour = floor(self.secondsLeft / 3600)
+	local minutes = floor((self.secondsLeft - (hour * 3600)) / 60)
+	local seconds = self.secondsLeft - ((hour * 3600) + (minutes * 60))
+
+	if( hour > 0 ) then
+		self.text:SetFormattedText("%d:%02d", hour, minute)
+	elseif( minutes > 0 ) then
+		self.text:SetFormattedText("%d:%02d", minutes, floor(seconds))
+	elseif( seconds < 10 ) then
+		self.text:SetFormattedText("%.1f", seconds)
+	else
+		self.text:SetFormattedText("%.0f", floor(seconds))
+	end
+
+	local percent = self.secondsLeft / self.startSeconds
+
+	-- Color gradient towards red
+	if( self.gradients ) then
+		-- finalColor + (currentColor - finalColor) * percentLeft		
+		self.sb:SetStatusBarColor(1.0 + (self.r - 1.0) * percent, self.g * percent, self.b * percent)
+	end
+
+	-- Now update the actual displayed bar
+	self.sb:SetValue(percent)
+end
+
+-- Reposition the group
+local function sortBars(a, b)
+	return a.endTime > b.endTime
+end
+
+local function repositionFrames(group)
+	table.sort(group.usedBars, sortBars)
+
+	local limit = 1
+	local row = 1
+	for i, bar in ipairs(group.usedBars) do
+		if(i == 1) then
+			bar:ClearAllPoints()
+			bar:SetPoint("TOPLEFT", group.frame, "BOTTOMLEFT")
+		else
+			bar:ClearAllPoints()
+			bar:SetPoint("LEFT", group.usedBars[i-1], "RIGHT")
+
+			local r = math.fmod(i - 1, limit)
+			if(r == 0) then
+				bar:ClearAllPoints()
+				bar:SetPoint("TOPLEFT", group.usedBars[row], "BOTTOMLEFT", 0, -3)
+				row = i
+			end
+		end
+	end
+end
+
+local display = {
+	-- Group related:
+	RegisterGroup = function(self, name, texture, ...)
+		assert(3, not groups[name], string.format(L["GROUP_EXISTS"], name))
+		local obj = {
+			name = name,
+			frame = CreateFrame("Frame"),
+			texture = texture,
+			scale = 1,
+			fontSize = 11,
+			width = 29,
+			height = 26,
+			obj = obj,
+			bars = {},
+			usedBars = {}
+		}
+
+		-- Register
+		groups[name] = obj
+
+		-- Set defaults
+		obj.frame:SetHeight(1)
+		obj.frame:SetWidth(1)
+
+		obj.RegisterBar = self.RegisterBar
+		obj.UnregisterBar = self.UnregisterBar
+
+		if( select("#", ...) > 0 ) then
+			obj.frame:SetPoint(...)
+		else
+			obj.frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+		end
+
+		return obj
+	end,
+
+	-- Bar related:
+	RegisterBar = function(group, id, startTime, seconds, icon, r, g, b)
+		assert(3, group.name and groups[group.name], string.format(L["MUST_CALL"], "RegisterBar"))
+
+		-- Already exists, remove the old one quickly
+		if( group.bars[id] ) then
+			group:UnregisterBar(id)
+		end
+
+		-- Retrieve a frame thats either recycled, or a newly created one
+		local frame = getFrame()
+
+		-- So we can do sorting and positioning
+		table.insert(group.usedBars, frame)
+
+		-- Grab basic info about the font
+		local path, size, style = GameFontHighlight:GetFont()
+		size = group.fontSize or size
+
+		local width, height = group.width, group.height
+		frame:SetWidth(width)
+		frame:SetHeight(height)
+
+		frame.cd:ClearAllPoints()
+		frame.cd:SetPoint("RIGHT", -3, 0)
+		frame.cd:SetPoint("TOP", 0, -3)
+		frame.cd:SetPoint("BOTTOM", 0, 3)
+		frame.cd:SetPoint("LEFT", width-height+3, 0)
+
+		-- Set info the bar needs to know
+		frame.r = r or group.baseColor.r
+		frame.g = g or group.baseColor.g
+		frame.b = b or group.baseColor.b
+		frame.owner = group.name
+		frame.lastUpdate = startTime
+		frame.endTime = startTime + seconds
+		frame.secondsLeft = seconds
+		frame.startSeconds = seconds
+		frame.gradients = group.gradients
+		frame.groupName = group.name
+		frame.id = id
+
+		-- Reposition this group
+		repositionFrames(group)
+
+		-- Start it up
+		frame.icon:SetTexture(icon)
+		frame.sb:SetStatusBarTexture(group.texture)
+		frame.sb:SetStatusBarColor(frame.r, frame.g, frame.b)
+		frame.cd:SetCooldown(startTime, seconds)
+		frame:SetScript("OnUpdate", OnUpdate)
+		frame:Show()
+
+		-- Register it
+		group.bars[id] = frame
+	end,
+
+	UnregisterBar = function(group, id)
+		assert(3, group.name and groups[group.name], string.format(L["MUST_CALL"], "UnregisterBar"))
+
+		-- Remove the old entry
+		if( group.bars[id] ) then
+			-- Remove from list of used bars
+			for i=#(group.usedBars), 1, -1 do
+				if( group.usedBars[i].id == id ) then
+					table.remove(group.usedBars, i)
+					break
+				end
+			end
+
+			releaseFrame(group.bars[id])
+			repositionFrames(group)
+			group.bars[id] = nil
+			return true
+		end
+
+		return
+	end,
+}
+
+oCD.display = display

@@ -1,5 +1,5 @@
 --[[-------------------------------------------------------------------------
-  Copyright (c) 2006-2007, Trond A Ekseth
+  Copyright (c) 2006-2008, Trond A Ekseth
   All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
@@ -29,26 +29,31 @@
   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ---------------------------------------------------------------------------]]
 
-local defaults = {
-	min = 2.0,
-	max = 15*60,
-	textPos = "right",
-	growth = "down",
+local db = {
+	spells = {
+		["Vampiric Embrace"] = true,
+		["Shadow Word: Death"] = true,
+		["Psychic Scream"] = true,
+		["Shadowfiend"] = true,
+		["Mind Blast"] = true,
+		["Fade"] = true,
+	},
+	items = {
+		[29370] = true,
+	},
+	settings = {
+	},
 }
 
 local addon = CreateFrame"Frame"
-addon:Hide()
-
 local print = function(...) ChatFrame1:AddMessage(...) end
 local printf = function(...) ChatFrame1:AddMessage(string.format(...)) end
 
---[[ tooltip madness
---]]
 local tip = CreateFrame"GameTooltip"
 tip:SetOwner(WorldFrame, "ANCHOR_NONE")
 tip.r, tip.l = {}, {}
 
-for i=1,8 do
+for i=1,3 do
 	tip.l[i], tip.r[i] = tip:CreateFontString(nil, nil, "GameFontNormal"), tip:CreateFontString(nil, nil, "GameFontNormal")
 	tip:AddFontStrings(tip.l[i], tip.r[i])
 end
@@ -62,53 +67,25 @@ end
 local min = SPELL_RECAST_TIME_MIN:gsub("%%%.3g", "%(%%d+%%.?%%d*%)")
 local sec = SPELL_RECAST_TIME_SEC:gsub("%%%.3g", "%(%%d+%%.?%%d*%)")
 
--- TODO: Remove the global reference to this table.
-local timers = {}
-addon.timers = timers
-
-local time, duration, enable
-local updateCooldown = function(self)
-	for name, obj in pairs(timers) do
-		time, duration, enable = GetSpellCooldown(obj.spellid, obj.type)
-
-		obj(duration, time)
-	end
-end
-
-addon.PLAYER_ENTERING_WORLD = updateCooldown
-
---[[ We delay these events as they can trigger extra scans.
---]]
-local show = function(self, event, unit) if(not unit or unit == "player") then addon:Show() end end
-addon.UNIT_SPELLCAST_SUCCEEDED = show
-addon.UNIT_SPELLCAST_STOP = show
-addon.UPDATE_STEALTH = show
-
---[[ Initiate the addon
---]]
-local register
 function addon:PLAYER_LOGIN()
-	register = self.bars.register
-	self:parseSpellBook(BOOKTYPE_SPELL)
-
-	self.bars.setMinMax(defaults.min, defaults.max)
-	self.bars.setTextPosition(defaults.textPos)
+	--self:parseSpellBook(BOOKTYPE_SPELL)
+	--self:parseSpellBook(BOOKTYPE_PET)
+	self:spawnChecks()
 end
 
 function addon:parseSpellBook(type)
-	local i, n, n2, r, cd = 1
+	local i = 1
 	while true do
-		n, r = GetSpellName(i, type)
-		n2 = GetSpellName(i+1, type)
-		if not n then break end
+		local name = GetSpellName(i, type)
+		local next = GetSpellName(i+1, type)
+		if(not name) then break end
 		
-		if(n ~= n2) then
+		if(name ~= next) then
 			SetSpell(i, type)
 
-			cd = tip.r[3]:GetText() or tip.r[2]:GetText()
-			if(cd and (cd:match(min) or cd:match(sec))) then
-				-- register(name, cd, texture, spellid, type)
-				timers[n] = register(n, GetSpellTexture(i, type), i, type)
+			local line = tip.r[3]:GetText() or tip.r[2]:GetText()
+			if(line and (line:match(sec) or line:match(min))) then
+				spells[name] = line:match(sec) or line:match(min)*60
 			end
 		end
 
@@ -116,30 +93,42 @@ function addon:parseSpellBook(type)
 	end
 end
 
---[[ We delay all updates with .5 sec
---]]
-local update = 0
-addon:SetScript("OnUpdate", function(self, elapsed)
-	update = update + elapsed
-	if(update > .5) then
-		updateCooldown()
+local group
+function addon:spawnChecks()
+	group = self.display:RegisterGroup("oCD", [[Interface\AddOns\oUF_Lily\textures\statusbar]], "TOP", "UIErrorsFrame", "BOTTOM")
+	group.gradients = true
+	group.frame:SetHeight(18 * 3)
+	group.frame:SetWidth(18 * 2)
+end
 
-		update = 0
-		self:Hide()
+function addon:SPELL_UPDATE_COOLDOWN()
+	for name, obj in pairs(db.spells) do
+		local startTime, duration, enabled = GetSpellCooldown(name)
+
+		if(duration > 1.5 and enabled == 1) then
+			group:RegisterBar(name, startTime, duration, GetSpellTexture(name), 0, 1, 0)
+		elseif(enabled == 1) then
+			group:UnregisterBar(name)
+		end
 	end
-end)
+end
+
+function addon:BAG_UPDATE_COOLDOWN()
+	for item, obj in pairs(db.items) do
+		local startTime, duration, enabled = GetItemCooldown(item)
+		if(enabled == 1) then
+			group:RegisterBar(item, startTime, duration, select(10, GetItemInfo(item)), 0, 1, 0)
+		end
+	end
+end
+
 addon:SetScript("OnEvent", function(self, event, ...)
 	self[event](self, event, ...)
 end)
 
 addon:RegisterEvent"PLAYER_LOGIN"
-addon:RegisterEvent"PLAYER_ENTERING_WORLD"
-
---[[ I decided to avoid SPELL_UPDATE_COOLDOWN, as it fires a lot..
---   we shave off some CPU usage by doing this instead.
---]]
-addon:RegisterEvent"UNIT_SPELLCAST_SUCCEEDED"
-addon:RegisterEvent"UNIT_SPELLCAST_STOP"
-addon:RegisterEvent"UPDATE_STEALTH"
+addon:RegisterEvent"SPELL_UPDATE_COOLDOWN"
+-- TODO: Only register if we actually are watching a cooldown in the container.
+addon:RegisterEvent"BAG_UPDATE_COOLDOWN"
 
 _G.oCD = addon
