@@ -42,6 +42,17 @@ local db = {
 		[29370] = true,
 	},
 	settings = {
+		-- statusbar
+		point = "LEFT",
+		fill = true,
+		gradients = true,
+		orientation = "VERTICAL",
+		texture = [[Interface\AddOns\oUF_Lily\textures\statusbar]],
+		-- icon(ish)
+		width = 29,
+		height = 26,
+		fontSize = 11,
+		scale = 1,
 	},
 }
 
@@ -68,9 +79,14 @@ local min = SPELL_RECAST_TIME_MIN:gsub("%%%.3g", "%(%%d+%%.?%%d*%)")
 local sec = SPELL_RECAST_TIME_SEC:gsub("%%%.3g", "%(%%d+%%.?%%d*%)")
 
 function addon:PLAYER_LOGIN()
-	--self:parseSpellBook(BOOKTYPE_SPELL)
-	--self:parseSpellBook(BOOKTYPE_PET)
-	self:spawnChecks()
+	self.group = self.display:RegisterGroup("oCD", "TOP", "UIErrorsFrame", "BOTTOM")
+
+	for k, v in pairs(db.settings) do
+		self.group[k] = v
+	end
+
+	self.group:SetHeight(18 * 3)
+	self.group:SetWidth(18 * 2)
 end
 
 function addon:parseSpellBook(type)
@@ -93,22 +109,15 @@ function addon:parseSpellBook(type)
 	end
 end
 
-local group
-function addon:spawnChecks()
-	group = self.display:RegisterGroup("oCD", [[Interface\AddOns\oUF_Lily\textures\statusbar]], "TOP", "UIErrorsFrame", "BOTTOM")
-	group.gradients = true
-	group.frame:SetHeight(18 * 3)
-	group.frame:SetWidth(18 * 2)
-end
 
 function addon:SPELL_UPDATE_COOLDOWN()
 	for name, obj in pairs(db.spells) do
 		local startTime, duration, enabled = GetSpellCooldown(name)
 
 		if(duration > 1.5 and enabled == 1) then
-			group:RegisterBar(name, startTime, duration, GetSpellTexture(name), 0, 1, 0)
+			self.group:RegisterBar(name, startTime, duration, GetSpellTexture(name), 0, 1, 0)
 		elseif(enabled == 1) then
-			group:UnregisterBar(name)
+			self.group:UnregisterBar(name)
 		end
 	end
 end
@@ -117,7 +126,7 @@ function addon:BAG_UPDATE_COOLDOWN()
 	for item, obj in pairs(db.items) do
 		local startTime, duration, enabled = GetItemCooldown(item)
 		if(enabled == 1) then
-			group:RegisterBar(item, startTime, duration, select(10, GetItemInfo(item)), 0, 1, 0)
+			self.group:RegisterBar(item, startTime, duration, select(10, GetItemInfo(item)), 0, 1, 0)
 		end
 	end
 end

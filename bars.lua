@@ -47,13 +47,7 @@ local function getFrame()
 
 	local sb = CreateFrame"StatusBar"
 	sb:SetParent(frame)
-	sb:SetPoint("TOP", frame, 0, -3)
-	sb:SetPoint("BOTTOM", 0, 3)
-	sb:SetPoint("LEFT", 3, 0)
-	sb:SetPoint("RIGHT", cd, "LEFT")
-	sb:SetOrientation"VERTICAL"
 	sb:SetMinMaxValues(0, 1)
-	sb:SetStatusBarTexture[[Interface\AddOns\oUF_Lily\textures\statusbar]]
 
 	frame.update = update
 	frame.cd = cd
@@ -81,7 +75,7 @@ local function OnUpdate(self)
 	self.lastUpdate = time
 	if( self.secondsLeft <= 0 ) then
 		self.sb:SetValue(0)
-		groups[self.owner]:UnregisterBar(self.id)
+		self.group:UnregisterBar(self.id)
 		return
 	end
 
@@ -101,15 +95,18 @@ local function OnUpdate(self)
 	end
 
 	local percent = self.secondsLeft / self.startSeconds
-
 	-- Color gradient towards red
 	if( self.gradients ) then
-		-- finalColor + (currentColor - finalColor) * percentLeft		
+		-- finalColor + (currentColor - finalColor) * percentLeft
 		self.sb:SetStatusBarColor(1.0 + (self.r - 1.0) * percent, self.g * percent, self.b * percent)
 	end
 
 	-- Now update the actual displayed bar
-	self.sb:SetValue(percent)
+	if(self.fill) then
+		self.sb:SetValue(1-percent)
+	else
+		self.sb:SetValue(percent)
+	end
 end
 
 -- Reposition the group
@@ -125,7 +122,7 @@ local function repositionFrames(group)
 	for i, bar in ipairs(group.usedBars) do
 		if(i == 1) then
 			bar:ClearAllPoints()
-			bar:SetPoint("TOPLEFT", group.frame, "BOTTOMLEFT")
+			bar:SetPoint("TOPLEFT", group, "BOTTOMLEFT")
 		else
 			bar:ClearAllPoints()
 			bar:SetPoint("LEFT", group.usedBars[i-1], "RIGHT")
@@ -142,35 +139,29 @@ end
 
 local display = {
 	-- Group related:
-	RegisterGroup = function(self, name, texture, ...)
+	RegisterGroup = function(self, name, ...)
 		assert(3, not groups[name], string.format(L["GROUP_EXISTS"], name))
-		local obj = {
-			name = name,
-			frame = CreateFrame("Frame"),
-			texture = texture,
-			scale = 1,
-			fontSize = 11,
-			width = 29,
-			height = 26,
-			obj = obj,
-			bars = {},
-			usedBars = {}
-		}
+		local obj = CreateFrame"Frame"
+		obj:SetParent(UIParen)
+
+		obj.name = name
+		obj.bars = {}
+		obj.usedBars = {}
 
 		-- Register
 		groups[name] = obj
 
 		-- Set defaults
-		obj.frame:SetHeight(1)
-		obj.frame:SetWidth(1)
+		obj:SetHeight(1)
+		obj:SetWidth(1)
 
 		obj.RegisterBar = self.RegisterBar
 		obj.UnregisterBar = self.UnregisterBar
 
-		if( select("#", ...) > 0 ) then
-			obj.frame:SetPoint(...)
+		if(select("#", ...) > 0) then
+			obj:SetPoint(...)
 		else
-			obj.frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+			obj:SetPoint"CENTER"
 		end
 
 		return obj
@@ -193,29 +184,41 @@ local display = {
 
 		-- Grab basic info about the font
 		local path, size, style = GameFontHighlight:GetFont()
-		size = group.fontSize or size
+		size = group.fontSize
 
-		local width, height = group.width, group.height
+		local width, height, point = group.width, group.height, group.point
+		local mod = (point == "LEFT" and 1) or -1
 		frame:SetWidth(width)
 		frame:SetHeight(height)
 
 		frame.cd:ClearAllPoints()
-		frame.cd:SetPoint("RIGHT", -3, 0)
+		frame.cd:SetPoint(point == "LEFT" and "RIGHT" or "LEFT", -3*mod, 0)
 		frame.cd:SetPoint("TOP", 0, -3)
 		frame.cd:SetPoint("BOTTOM", 0, 3)
-		frame.cd:SetPoint("LEFT", width-height+3, 0)
+		frame.cd:SetPoint(point == "LEFT" and "LEFT" or "RIGHT", (width-height+3)*mod, 0)
+
+		local sb = frame.sb
+		sb:SetPoint("TOP", frame, 0, -3)
+		sb:SetPoint("BOTTOM", 0, 3)
+		sb:SetPoint(point == "LEFT" and "LEFT" or "RIGHT", 3*mod, 0)
+		if(point == "LEFT") then
+			sb:SetPoint("RIGHT", frame.cd, "LEFT")
+		else
+			sb:SetPoint("LEFT", frame.cd, "RIGHT")
+		end
+		sb:SetOrientation(group.orientation)
 
 		-- Set info the bar needs to know
 		frame.r = r or group.baseColor.r
 		frame.g = g or group.baseColor.g
 		frame.b = b or group.baseColor.b
-		frame.owner = group.name
+		frame.group = group
 		frame.lastUpdate = startTime
 		frame.endTime = startTime + seconds
 		frame.secondsLeft = seconds
 		frame.startSeconds = seconds
 		frame.gradients = group.gradients
-		frame.groupName = group.name
+		frame.fill = group.fill
 		frame.id = id
 
 		-- Reposition this group
