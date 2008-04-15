@@ -31,6 +31,7 @@ local function getFrame()
 	frame:SetBackdropBorderColor(0, 0, 0)
 
 	local cd = CreateFrame"Cooldown"
+	cd.noomnicc = true
 	cd:SetParent(frame)
 
 	local font, size = GameFontNormal:GetFont()
@@ -54,7 +55,7 @@ local function getFrame()
 	local OnUpdate
 	do
 		-- OnUpdate for a bar
-		local frequency, timer, forced = 1, 1 -- first update == LE FORCED!
+		local frequency, timer, forced = 1, 0, true -- first update == LE FORCED!
 		local secondsLeft, startSeconds
 		local fill, gradients, min, sec, percent
 		function OnUpdate(self, elapsed)
