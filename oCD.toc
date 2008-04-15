@@ -3,5 +3,7 @@
 ## X-eMail: troeks@gmail.com
 ## Notes: Display cooldowns as icons, currently hardcoded under the UIErrorsFrame.
 
+lib\AceDB-3.0\AceDB-3.0.xml
+
 ocd.lua
 bars.lua

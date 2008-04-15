@@ -2,8 +2,10 @@
 -- The code is largly based on GTB: http://shadowed-wow.googlecode.com/svn/trunk/GTB/
 ]]
 
+local fmod, floor, abs, upper, format = math.fmod, math.floor, math.abs, string.upper, string.format
+
 local framePool = {}
-groups = {}
+local groups = {}
 
 local L = {
 	["BAD_ARGUMENT"] = "bad argument #%d for '%s' (%s expected, got %s)",
@@ -27,7 +29,6 @@ local function getFrame()
 	}
 	frame:SetBackdropColor(0, 0, 0)
 	frame:SetBackdropBorderColor(0, 0, 0)
-	frame:SetScript("OnUpdate", OnUpdate)
 
 	local cd = CreateFrame"Cooldown"
 	cd:SetParent(frame)
@@ -49,6 +50,68 @@ local function getFrame()
 	sb:SetParent(frame)
 	sb:SetMinMaxValues(0, 1)
 
+	-- All the Children Are Dead
+	local OnUpdate
+	do
+		-- OnUpdate for a bar
+		local frequency, timer, forced = 1, 1 -- first update == LE FORCED!
+		local secondsLeft, startSeconds
+		local fill, gradients, min, sec, percent
+		function OnUpdate(self, elapsed)
+			timer = timer + elapsed
+
+			if(timer >= frequency or forced) then
+				-- Check if times ran out and that we need to start fading it out
+				secondsLeft = secondsLeft - timer
+				if(secondsLeft <= 0) then
+					frequency = 1
+					self.group:UnregisterBar(self.id)
+					return
+				end
+
+				min, sec = floor(secondsLeft / 60), fmod(secondsLeft, 60)
+				if(min > 0) then
+					text:SetFormattedText("%d:%02d", min, sec)
+				elseif(sec < 10) then
+					frequency = .05
+					text:SetFormattedText("%.1f", sec)
+				else
+					text:SetFormattedText("%d", sec)
+				end
+
+				percent = secondsLeft / startSeconds
+				-- Color gradient towards red
+				if(gradients) then
+					-- finalColor + (currentColor - finalColor) * percentLeft
+					sb:SetStatusBarColor(1.0 + (self.r - 1.0) * percent, self.g * percent, self.b * percent)
+				end
+
+				-- Now update the actual displayed bar
+				if(fill) then
+					sb:SetValue(1-percent)
+				else
+					sb:SetValue(percent)
+				end
+
+				timer = 0
+				if(forced) then forced = nil end
+			end
+		end
+
+		frame.SetVars = function(s, gr, f)
+			if(s) then
+				startSeconds = s
+				secondsLeft = s
+				forced = true
+			end
+
+			gradients = gr
+			fill = f
+		end
+	end
+
+	frame:SetScript("OnUpdate", OnUpdate)
+
 	frame.update = update
 	frame.cd = cd
 	frame.text = text
@@ -60,53 +123,10 @@ end
 
 local function releaseFrame(frame)
 	-- Stop updates
-	frame:SetScript("OnUpdate", nil)
 	frame:Hide()
 
-	-- And now readd to the frame pool
+	-- And now read to the frame pool
 	table.insert(framePool, frame)
-end
-
--- OnUpdate for a bar
-local function OnUpdate(self)
-	local time = GetTime()
-	-- Check if times ran out and that we need to start fading it out
-	self.secondsLeft = self.secondsLeft - (time - self.lastUpdate)
-	self.lastUpdate = time
-	if( self.secondsLeft <= 0 ) then
-		self.sb:SetValue(0)
-		self.group:UnregisterBar(self.id)
-		return
-	end
-
-	-- Timer text, need to see if this can be optimized a bit later
-	local hour = floor(self.secondsLeft / 3600)
-	local minutes = floor((self.secondsLeft - (hour * 3600)) / 60)
-	local seconds = self.secondsLeft - ((hour * 3600) + (minutes * 60))
-
-	if( hour > 0 ) then
-		self.text:SetFormattedText("%d:%02d", hour, minute)
-	elseif( minutes > 0 ) then
-		self.text:SetFormattedText("%d:%02d", minutes, floor(seconds))
-	elseif( seconds < 10 ) then
-		self.text:SetFormattedText("%.1f", seconds)
-	else
-		self.text:SetFormattedText("%.0f", floor(seconds))
-	end
-
-	local percent = self.secondsLeft / self.startSeconds
-	-- Color gradient towards red
-	if( self.gradients ) then
-		-- finalColor + (currentColor - finalColor) * percentLeft
-		self.sb:SetStatusBarColor(1.0 + (self.r - 1.0) * percent, self.g * percent, self.b * percent)
-	end
-
-	-- Now update the actual displayed bar
-	if(self.fill) then
-		self.sb:SetValue(1-percent)
-	else
-		self.sb:SetValue(percent)
-	end
 end
 
 -- Reposition the group
@@ -114,27 +134,86 @@ local function sortBars(a, b)
 	return a.endTime > b.endTime
 end
 
-local function repositionFrames(group)
-	table.sort(group.usedBars, sortBars)
-
-	local limit = 1
-	local row = 1
-	for i, bar in ipairs(group.usedBars) do
-		if(i == 1) then
-			bar:ClearAllPoints()
-			bar:SetPoint("TOPLEFT", group, "BOTTOMLEFT")
-		else
-			bar:ClearAllPoints()
-			bar:SetPoint("LEFT", group.usedBars[i-1], "RIGHT")
-
-			local r = math.fmod(i - 1, limit)
-			if(r == 0) then
-				bar:ClearAllPoints()
-				bar:SetPoint("TOPLEFT", group.usedBars[row], "BOTTOMLEFT", 0, -3)
-				row = i
-			end
-		end
+local function getRelativePointAnchor(point)
+	point = upper(point)
+	if (point == "TOP") then
+		return "BOTTOM", 0, -1
+	elseif (point == "BOTTOM") then
+		return "TOP", 0, 1
+	elseif (point == "LEFT") then
+		return "RIGHT", 1, 0
+	elseif (point == "RIGHT") then
+		return "LEFT", -1, 0
+	elseif (point == "TOPLEFT") then
+		return "BOTTOMRIGHT", 1, -1
+	elseif (point == "TOPRIGHT") then
+		return "BOTTOMLEFT", -1, -1
+	elseif (point == "BOTTOMLEFT") then
+		return "TOPRIGHT", 1, 1
+	elseif (point == "BOTTOMRIGHT") then
+		return "TOPLEFT", -1, 1
+	else
+		return "CENTER", 0, 0
 	end
+end
+
+local function repositionFrames(group)
+	local bars = #group.usedBars
+	-- if we have less bars, we don't need to re-arrange anything.
+	if(bars < group.lastUpdate) then return end
+
+	table.sort(group.usedBars, sortBars)
+	local frame = group.frame
+	local point = frame.point
+	local relativePoint, xOffsetMult, yOffsetMult = getRelativePointAnchor(point)
+	local xMultiplier, yMultiplier = abs(xOffsetMult), abs(yOffsetMult)
+	local xOffset = frame.xOffset
+	local yOffset = frame.yOffset
+	local columnSpacing = frame.columnSpacing
+
+	local columnMax = frame.columnMax
+	local numColumns
+	if ( columnMax and bars > columnMax ) then
+		numColumns = ceil(bars / columnMax)
+	else
+		columnMax = bars
+		numColumns = 1
+	end
+
+	local columnAnchorPoint, columnRelPoint, colxMulti, colyMulti
+	if(numColumns > 1) then
+		columnAnchorPoint = frame.columnAnchorPoint
+		columnRelPoint, colxMulti, colyMulti = getRelativePointAnchor(columnAnchorPoint)
+	end
+
+	local columnNum = 1
+	local columnCount = 0
+	local currentAnchor = group
+	for i = 1, bars do
+		columnCount = columnCount + 1
+		if ( columnCount > columnMax ) then
+			columnCount = 1
+			columnNum = columnNum + 1
+		end
+
+		local bar = group.usedBars[i]
+		bar:ClearAllPoints()
+		if ( i == 1 ) then
+			bar:SetPoint(point, currentAnchor, point, 0, 0)
+			if ( columnAnchorPoint ) then
+				bar:SetPoint(columnAnchorPoint, currentAnchor, columnAnchorPoint, 0, 0)
+			end
+		elseif ( columnCount == 1 ) then
+			local columnAnchor = group.usedBars[(i - columnMax)]
+			bar:SetPoint(columnAnchorPoint, columnAnchor, columnRelPoint, colxMulti * columnSpacing, colyMulti * columnSpacing)
+		else
+			bar:SetPoint(point, currentAnchor, relativePoint, xMultiplier * xOffset, yMultiplier * yOffset)
+		end
+
+		currentAnchor = bar
+	end
+
+	group.lastUpdate = bars
 end
 
 local display = {
@@ -184,9 +263,10 @@ local display = {
 
 		-- Grab basic info about the font
 		local path, size, style = GameFontHighlight:GetFont()
-		size = group.fontSize
+		local textSize = group.text.size
+		local timerSize = group.timer.size
 
-		local width, height, point = group.width, group.height, group.point
+		local width, height, point = group.frame.width, group.frame.height, group.statusbar.point
 		local mod = (point == "LEFT" and 1) or -1
 		frame:SetWidth(width)
 		frame:SetHeight(height)
@@ -206,30 +286,33 @@ local display = {
 		else
 			sb:SetPoint("LEFT", frame.cd, "RIGHT")
 		end
-		sb:SetOrientation(group.orientation)
+		sb:SetOrientation(group.statusbar.orientation)
 
 		-- Set info the bar needs to know
 		frame.r = r or group.baseColor.r
 		frame.g = g or group.baseColor.g
 		frame.b = b or group.baseColor.b
 		frame.group = group
-		frame.lastUpdate = startTime
 		frame.endTime = startTime + seconds
 		frame.secondsLeft = seconds
 		frame.startSeconds = seconds
-		frame.gradients = group.gradients
-		frame.fill = group.fill
+		frame.gradients = group.statusbar.gradients
+		frame.fill = group.statusbar.fill
 		frame.id = id
 
+		frame.SetVars(seconds, group.statusbar.gradients, group.statusbar.fill)
+
+		-- Reset last update.
+		group.lastUpdate = 0
 		-- Reposition this group
 		repositionFrames(group)
 
 		-- Start it up
 		frame.icon:SetTexture(icon)
-		frame.sb:SetStatusBarTexture(group.texture)
-		frame.sb:SetStatusBarColor(frame.r, frame.g, frame.b)
+		sb:SetStatusBarTexture(group.statusbar.texture)
+		sb:SetStatusBarColor(frame.r, frame.g, frame.b)
+		sb:SetValue(group.statusbar.fill and 0 or 1)
 		frame.cd:SetCooldown(startTime, seconds)
-		frame:SetScript("OnUpdate", OnUpdate)
 		frame:Show()
 
 		-- Register it

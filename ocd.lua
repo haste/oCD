@@ -43,16 +43,30 @@ local db = {
 	},
 	settings = {
 		-- statusbar
-		point = "LEFT",
-		fill = true,
-		gradients = true,
-		orientation = "VERTICAL",
-		texture = [[Interface\AddOns\oUF_Lily\textures\statusbar]],
-		-- icon(ish)
-		width = 29,
-		height = 26,
-		fontSize = 11,
-		scale = 1,
+		statusbar = {
+			point = "LEFT",
+			fill = true,
+			gradients = true,
+			orientation = "VERTICAL",
+			texture = [[Interface\AddOns\oUF_Lily\textures\statusbar]],
+		},
+		frame = {
+			width = 29,
+			height = 26,
+			scale = 1,
+			point = "TOP",
+			xOffset = 5,
+			yOffset = -5,
+			columnSpacing = 0,
+			columnMax = 3,
+			columnAnchorPoint = "LEFT",
+		},
+		timer = {
+			size = 11,
+		},
+		text = {
+			size = 11,
+		},
 	},
 }
 
@@ -84,6 +98,9 @@ function addon:PLAYER_LOGIN()
 	for k, v in pairs(db.settings) do
 		self.group[k] = v
 	end
+
+	self.group:SetBackdropColor(0, 0, 0)
+	self.group:SetBackdropBorderColor(0, 0, 0)
 
 	self.group:SetHeight(18 * 3)
 	self.group:SetWidth(18 * 2)
