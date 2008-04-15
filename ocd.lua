@@ -131,7 +131,7 @@ function addon:SPELL_UPDATE_COOLDOWN()
 	for name, obj in pairs(db.spells) do
 		local startTime, duration, enabled = GetSpellCooldown(name)
 
-		if(duration > 1.5 and enabled == 1) then
+		if(enabled == 1 and duration > 1.5) then
 			self.group:RegisterBar(name, startTime, duration, GetSpellTexture(name), 0, 1, 0)
 		elseif(enabled == 1) then
 			self.group:UnregisterBar(name)
