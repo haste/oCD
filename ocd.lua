@@ -58,7 +58,7 @@ local db = {
 			xOffset = 5,
 			yOffset = -5,
 			columnSpacing = 0,
-			columnMax = 3,
+			columnMax = 5,
 			columnAnchorPoint = "LEFT",
 		},
 		timer = {
