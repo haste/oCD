@@ -99,10 +99,10 @@ local function getFrame()
 			end
 		end
 
-		frame.SetVars = function(s, gr, f)
+		frame.SetVars = function(s, sl, gr, f)
 			if(s) then
 				startSeconds = s
-				secondsLeft = s
+				secondsLeft = sl
 				forced = true
 			end
 
@@ -295,13 +295,13 @@ local display = {
 		frame.b = b or group.baseColor.b
 		frame.group = group
 		frame.endTime = startTime + seconds
-		frame.secondsLeft = seconds
+		frame.secondsLeft = startTime - GetTime() + seconds
 		frame.startSeconds = seconds
 		frame.gradients = group.statusbar.gradients
 		frame.fill = group.statusbar.fill
 		frame.id = id
 
-		frame.SetVars(seconds, group.statusbar.gradients, group.statusbar.fill)
+		frame.SetVars(seconds, frame.secondsLeft, group.statusbar.gradients, group.statusbar.fill)
 
 		-- Reset last update.
 		group.lastUpdate = 0
