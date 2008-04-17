@@ -48,7 +48,7 @@ local db = {
 			fill = true,
 			gradients = true,
 			orientation = "VERTICAL",
-			texture = [[Interface\AddOns\oUF_Lily\textures\statusbar]],
+			texture = [[Interface\AddOns\oCD\textures\smooth]],
 		},
 		frame = {
 			width = 29,
