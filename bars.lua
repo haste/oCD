@@ -13,6 +13,12 @@ local L = {
 	["GROUP_EXISTS"] = "The group '%s' already exists.",
 }
 
+local backdrop = {
+	bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", tile = true, tileSize = 16,
+	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 8,
+	insets = {left = 2, right = 2, top = 2, bottom = 2},
+}
+
 local function getFrame()
 	-- Check for an unused bar
 	if( #(framePool) > 0 ) then
@@ -22,11 +28,7 @@ local function getFrame()
 	local frame = CreateFrame"Frame"
 	frame:Hide()
 	frame:SetParent(UIParent)
-	frame:SetBackdrop{
-		bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", tile = true, tileSize = 16,
-		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 8,
-		insets = {left = 2, right = 2, top = 2, bottom = 2},
-	}
+	frame:SetBackdrop(backdrop)
 	frame:SetBackdropColor(0, 0, 0)
 	frame:SetBackdropBorderColor(0, 0, 0)
 
