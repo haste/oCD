@@ -49,14 +49,14 @@ local db = {
 	settings = {
 		-- statusbar
 		statusbar = {
+			size = 4,
 			point = "LEFT",
 			gradients = true,
 			orientation = "VERTICAL",
 			texture = [[Interface\AddOns\oCD\textures\smooth]],
 		},
 		frame = {
-			width = 29,
-			height = 26,
+			size = 30,
 			scale = 1,
 			point = "TOP",
 			xOffset = 5,
@@ -64,12 +64,6 @@ local db = {
 			columnSpacing = 0,
 			columnMax = 1,
 			columnAnchorPoint = "RIGHT",
-		},
-		timer = {
-			size = 11,
-		},
-		text = {
-			size = 11,
 		},
 	},
 }

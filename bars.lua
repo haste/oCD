@@ -14,7 +14,7 @@ local L = {
 }
 
 local backdrop = {
-	bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", tile = true, tileSize = 16,
+	bgFile = "Interface\\ChatFrame\\ChatFrameBackground", tile = true, tileSize = 16,
 	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 8,
 	insets = {left = 2, right = 2, top = 2, bottom = 2},
 }
@@ -36,17 +36,16 @@ local BarOnUpdate = function()
 			self.text:SetFormattedText("%d", sec)
 		end
 
-		--[[
-		percent = secondsLeft / startSeconds
+		local sb = self.sb
+		local percent = duration / self.max
 		-- Color gradient towards red
 		if(self.gradients) then
 			-- finalColor + (currentColor - finalColor) * percentLeft
 			sb:SetStatusBarColor(1.0 + (self.r - 1.0) * percent, self.g * percent, self.b * percent)
 		end
-		]]
 
 		self.duration = duration
-		self.sb:SetValue(duration)
+		sb:SetValue(duration)
 	end
 end
 
@@ -66,24 +65,26 @@ local function getFrame()
 	local cd = CreateFrame"Cooldown"
 	cd.noomnicc = true
 	cd:SetParent(frame)
+	cd:SetPoint("RIGHT", -2, 0)
 
-	local font, size = GameFontNormal:GetFont()
+	local font, size = GameFontNormalSmall:GetFont()
 	local text = cd:CreateFontString()
+	text:SetFont(font, size, 'OUTLINE')
 	text:SetDrawLayer"OVERLAY"
-	text:SetFont(font, size, "OUTLINE")
 	text:SetTextColor(1, 1, 1)
-	text:SetPoint("BOTTOM", frame, 1, -2)
+	text:SetPoint("BOTTOM", cd, 1, 1)
 
 	local icon = cd:CreateTexture()
 	icon:SetDrawLayer"BACKGROUND"
 	icon:SetTexCoord(.07, .93, .07, .93)
-	icon:ClearAllPoints()
 	icon:SetAllPoints(cd)
 
 	local sb = CreateFrame"StatusBar"
 	sb:SetParent(frame)
+	sb:SetPoint('LEFT', 2, 0)
+	sb:SetPoint('RIGHT', cd, 'LEFT')
 
-	frame:SetScript("OnUpdate", BarOnUpdate())
+	frame:SetScript('OnUpdate', BarOnUpdate())
 
 	frame.update = update
 	frame.cd = cd
@@ -234,31 +235,17 @@ local display = {
 		-- So we can do sorting and positioning
 		table.insert(group.usedBars, frame)
 
-		-- Grab basic info about the font
-		local path, size, style = GameFontHighlight:GetFont()
-		local textSize = group.text.size
-		local timerSize = group.timer.size
+		local fSize = group.frame.size
+		local sbSize, sbPoint = group.statusbar.size, group.statusbar.point
+		frame:SetWidth(fSize + sbSize + 6)
+		frame:SetHeight(fSize + 3)
 
-		local width, height, point = group.frame.width, group.frame.height, group.statusbar.point
-		local mod = (point == "LEFT" and 1) or -1
-		frame:SetWidth(width)
-		frame:SetHeight(height)
-
-		frame.cd:ClearAllPoints()
-		frame.cd:SetPoint(point == "LEFT" and "RIGHT" or "LEFT", -3*mod, 0)
-		frame.cd:SetPoint("TOP", 0, -3)
-		frame.cd:SetPoint("BOTTOM", 0, 3)
-		frame.cd:SetPoint(point == "LEFT" and "LEFT" or "RIGHT", (width-height+3)*mod, 0)
+		frame.cd:SetWidth(fSize)
+		frame.cd:SetHeight(fSize)
 
 		local sb = frame.sb
-		sb:SetPoint("TOP", frame, 0, -3)
-		sb:SetPoint("BOTTOM", 0, 3)
-		sb:SetPoint(point == "LEFT" and "LEFT" or "RIGHT", 3*mod, 0)
-		if(point == "LEFT") then
-			sb:SetPoint("RIGHT", frame.cd, "LEFT")
-		else
-			sb:SetPoint("LEFT", frame.cd, "RIGHT")
-		end
+		sb:SetHeight(fSize)
+		sb:SetWidth(sbSize)
 		sb:SetOrientation(group.statusbar.orientation)
 
 		-- Set info the bar needs to know
@@ -269,6 +256,7 @@ local display = {
 
 		local duration = startTime - GetTime() + seconds
 		frame.duration = duration
+		frame.max = seconds
 
 		frame.gradients = group.statusbar.gradients
 		frame.id = id
