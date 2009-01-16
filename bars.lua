@@ -19,6 +19,37 @@ local backdrop = {
 	insets = {left = 2, right = 2, top = 2, bottom = 2},
 }
 
+local BarOnUpdate = function()
+	return function(self, elapsed)
+		local duration = self.duration - elapsed
+		if(duration <= 0) then
+			self.group:UnregisterBar(self.id)
+			return
+		end
+
+		local min, sec = floor(duration / 60), fmod(duration, 60)
+		if(min > 0) then
+			self.text:SetFormattedText("%d:%02d", min, sec)
+		elseif(sec < 10) then
+			self.text:SetFormattedText("%.1f", sec)
+		else
+			self.text:SetFormattedText("%d", sec)
+		end
+
+		--[[
+		percent = secondsLeft / startSeconds
+		-- Color gradient towards red
+		if(self.gradients) then
+			-- finalColor + (currentColor - finalColor) * percentLeft
+			sb:SetStatusBarColor(1.0 + (self.r - 1.0) * percent, self.g * percent, self.b * percent)
+		end
+		]]
+
+		self.duration = duration
+		self.sb:SetValue(duration)
+	end
+end
+
 local function getFrame()
 	-- Check for an unused bar
 	if( #(framePool) > 0 ) then
@@ -51,69 +82,8 @@ local function getFrame()
 
 	local sb = CreateFrame"StatusBar"
 	sb:SetParent(frame)
-	sb:SetMinMaxValues(0, 1)
 
-	-- All the Children Are Dead
-	local OnUpdate
-	do
-		-- OnUpdate for a bar
-		local frequency, timer, forced = 1, 0, true -- first update == LE FORCED!
-		local secondsLeft, startSeconds
-		local fill, gradients, min, sec, percent
-		function OnUpdate(self, elapsed)
-			timer = timer + elapsed
-
-			if(timer >= frequency or forced) then
-				-- Check if times ran out and that we need to start fading it out
-				secondsLeft = secondsLeft - timer
-				if(secondsLeft <= 0) then
-					frequency = 1
-					self.group:UnregisterBar(self.id)
-					return
-				end
-
-				min, sec = floor(secondsLeft / 60), fmod(secondsLeft, 60)
-				if(min > 0) then
-					text:SetFormattedText("%d:%02d", min, sec)
-				elseif(sec < 10) then
-					frequency = .05
-					text:SetFormattedText("%.1f", sec)
-				else
-					text:SetFormattedText("%d", sec)
-				end
-
-				percent = secondsLeft / startSeconds
-				-- Color gradient towards red
-				if(gradients) then
-					-- finalColor + (currentColor - finalColor) * percentLeft
-					sb:SetStatusBarColor(1.0 + (self.r - 1.0) * percent, self.g * percent, self.b * percent)
-				end
-
-				-- Now update the actual displayed bar
-				if(fill) then
-					sb:SetValue(1-percent)
-				else
-					sb:SetValue(percent)
-				end
-
-				timer = 0
-				if(forced) then forced = nil end
-			end
-		end
-
-		frame.SetVars = function(s, sl, gr, f)
-			if(s) then
-				startSeconds = s
-				secondsLeft = sl
-				forced = true
-			end
-
-			gradients = gr
-			fill = f
-		end
-	end
-
-	frame:SetScript("OnUpdate", OnUpdate)
+	frame:SetScript("OnUpdate", BarOnUpdate())
 
 	frame.update = update
 	frame.cd = cd
@@ -134,7 +104,7 @@ end
 
 -- Reposition the group
 local function sortBars(a, b)
-	return a.endTime > b.endTime
+	return a.duration > b.duration
 end
 
 local function getRelativePointAnchor(point)
@@ -296,14 +266,12 @@ local display = {
 		frame.g = g or group.baseColor.g
 		frame.b = b or group.baseColor.b
 		frame.group = group
-		frame.endTime = startTime + seconds
-		frame.secondsLeft = startTime - GetTime() + seconds
-		frame.startSeconds = seconds
-		frame.gradients = group.statusbar.gradients
-		frame.fill = group.statusbar.fill
-		frame.id = id
 
-		frame.SetVars(seconds, frame.secondsLeft, group.statusbar.gradients, group.statusbar.fill)
+		local duration = startTime - GetTime() + seconds
+		frame.duration = duration
+
+		frame.gradients = group.statusbar.gradients
+		frame.id = id
 
 		-- Reset last update.
 		group.lastUpdate = 0
@@ -314,7 +282,8 @@ local display = {
 		frame.icon:SetTexture(icon)
 		sb:SetStatusBarTexture(group.statusbar.texture)
 		sb:SetStatusBarColor(frame.r, frame.g, frame.b)
-		sb:SetValue(group.statusbar.fill and 0 or 1)
+		sb:SetMinMaxValues(0, seconds)
+		sb:SetValue(duration)
 		frame.cd:SetCooldown(startTime, seconds)
 		frame:Show()
 

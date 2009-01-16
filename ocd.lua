@@ -31,21 +31,25 @@
 
 local db = {
 	spells = {
+		-- Priest
 		["Vampiric Embrace"] = true,
 		["Shadow Word: Death"] = true,
 		["Psychic Scream"] = true,
 		["Shadowfiend"] = true,
 		["Mind Blast"] = true,
 		["Fade"] = true,
+
+		-- Rogue
+		['Vanish'] = true,
 	},
 	items = {
 		[29370] = true,
+		[44014] = true,
 	},
 	settings = {
 		-- statusbar
 		statusbar = {
 			point = "LEFT",
-			fill = true,
 			gradients = true,
 			orientation = "VERTICAL",
 			texture = [[Interface\AddOns\oCD\textures\smooth]],
@@ -58,8 +62,8 @@ local db = {
 			xOffset = 5,
 			yOffset = -5,
 			columnSpacing = 0,
-			columnMax = 5,
-			columnAnchorPoint = "LEFT",
+			columnMax = 1,
+			columnAnchorPoint = "RIGHT",
 		},
 		timer = {
 			size = 11,
