@@ -63,7 +63,7 @@ local function getFrame()
 	frame:SetBackdropBorderColor(0, 0, 0)
 
 	local cd = CreateFrame"Cooldown"
-	cd.noomnicc = true
+	cd.noCooldownCount = true
 	cd:SetParent(frame)
 	cd:SetPoint("RIGHT", -2, 0)
 
