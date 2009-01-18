@@ -10,6 +10,8 @@ local db = {
 
 		-- Rogue
 		['Vanish'] = true,
+		['Sprint'] = true,
+		['Cold Blood'] = true,
 	},
 	items = {
 		[29370] = true,
